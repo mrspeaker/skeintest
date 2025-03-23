@@ -3,6 +3,7 @@ use bevy_skein::SkeinPlugin;
 use std::f32::consts::*;
 use avian3d::prelude::*;
 
+use std::f32::consts::TAU;
 
 #[derive(Debug, Event)]
 pub struct DroppedFile {
@@ -17,12 +18,32 @@ struct Player {
     test: i32,
 }
 
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct Spin2 {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+impl Default for Spin2 {
+    fn default() -> Self {
+        Self {
+            x: 10.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+}
+
 #[derive(Component)]
 struct MyCam;
 
 fn main() {
     App::new()
         .register_type::<Player>()
+        .register_type::<Spin2>()
+        .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
             DefaultPlugins,
             // PhysicsDebugPlugin::default(),
@@ -30,7 +51,12 @@ fn main() {
             SkeinPlugin::default()
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, (file_drop, move_player, update_cam))
+        .add_systems(Update, (
+            file_drop,
+            move_player,
+            update_cam,
+            update_spin
+        ))
         .add_observer(on_dropped)
         .run();
 }
@@ -65,15 +91,15 @@ fn setup(
             ..default()
     },*/
         PointLight {
-            intensity: 1_000_000.0,
-            range: 500.0,
-            radius: 20.0,
-            color: Color::linear_rgb(1.0,0.9, 0.9),
+            intensity: 2_000_000.0,
+            range: 15.0,
+            radius: 10.0,
+            color: Color::linear_rgb(1.0,0.9, 0.5),
             shadows_enabled: true,
             ..default()
         },
         Transform {
-            translation: Vec3::new(5.0, 10.0, 0.0),
+            translation: Vec3::new(5.0, 11.0, 0.0),
            // rotation: Quat::from_rotation_x(-PI / 2.0 +0.4),
             ..default()
         },
@@ -138,6 +164,19 @@ fn update_cam(
 ) {
     let secs = time.elapsed_secs_wrapped();
     for mut t in cam.iter_mut() {
-        t.translation.y += (secs * 2.0).sin() * 0.01;
+        t.translation.y += (secs * 0.5).sin() * 0.0025;
+    }
+}
+
+
+fn update_spin(
+    mut spin: Query<(&mut Transform, &Spin2)>,
+    time: Res<Time>
+) {
+    let dt = time.delta_secs();
+    for (mut t, s) in spin.iter_mut() {
+        t.rotate_x(s.x * TAU * dt);
+        t.rotate_y(s.y * TAU * dt);
+        t.rotate_z(s.z * TAU * dt);
     }
 }
