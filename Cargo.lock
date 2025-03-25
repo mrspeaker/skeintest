@@ -4269,6 +4269,7 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_skein",
+ "serde_json",
 ]
 
 [[package]]

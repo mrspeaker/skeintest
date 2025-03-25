@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::{TypeRegistry, serde::*}, scene::SceneInstanceReady};
 use bevy_skein::SkeinPlugin;
 use std::f32::consts::*;
 use avian3d::prelude::*;
@@ -20,29 +20,52 @@ struct Player {
 
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
-struct Spin2 {
+struct Spin {
     x: f32,
     y: f32,
     z: f32,
 }
 
-impl Default for Spin2 {
-    fn default() -> Self {
-        Self {
-            x: 10.0,
-            y: 0.0,
-            z: 0.0
-        }
-    }
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct Lamp {
+	r: f32,
+	g: f32,
+	b: f32,
+	light: f32,
+}
+
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct LampCol {
+    _col: Color,
+    r: f32,
 }
 
 #[derive(Component)]
 struct MyCam;
 
+#[test]
+fn color_support() {
+    let value = LampCol {
+        _col: Color::srgba(1.0, 1.0, 1.0, 1.0),
+        r: 0.0
+    };
+
+    let mut type_registry = TypeRegistry::new();
+    type_registry.register::<LampCol>();
+    let serializer = ReflectSerializer::new(&value, &type_registry);
+    let json_string = serde_json::ser::to_string(&serializer).unwrap();
+
+    assert_eq!(json_string, "");
+}
+
 fn main() {
     App::new()
         .register_type::<Player>()
-        .register_type::<Spin2>()
+        .register_type::<Spin>()
+        .register_type::<Lamp>()
+        .register_type::<LampCol>()
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
             DefaultPlugins,
@@ -53,6 +76,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, (
             file_drop,
+            added_lamp,
             move_player,
             update_cam,
             update_spin
@@ -81,31 +105,10 @@ fn setup(
 
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
-    )));
+    ))).observe(on_scene_ready);
 
-    // Sun light
-    commands.spawn((
-/*        DirectionalLight {
-            illuminance: light_consts::lux::OVERCAST_DAY,
-            shadows_enabled: true,
-            ..default()
-    },*/
-        PointLight {
-            intensity: 2_000_000.0,
-            range: 15.0,
-            radius: 10.0,
-            color: Color::linear_rgb(1.0,0.9, 0.5),
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform {
-            translation: Vec3::new(5.0, 11.0, 0.0),
-           // rotation: Quat::from_rotation_x(-PI / 2.0 +0.4),
-            ..default()
-        },
-    ));
 
-        // Ambient light
+    // Ambient light
     commands.insert_resource(AmbientLight {
         color: Color::linear_rgb(1.0,1.0, 1.0),
         brightness: 50.0,
@@ -170,7 +173,7 @@ fn update_cam(
 
 
 fn update_spin(
-    mut spin: Query<(&mut Transform, &Spin2)>,
+    mut spin: Query<(&mut Transform, &Spin)>,
     time: Res<Time>
 ) {
     let dt = time.delta_secs();
@@ -178,5 +181,47 @@ fn update_spin(
         t.rotate_x(s.x * TAU * dt);
         t.rotate_y(s.y * TAU * dt);
         t.rotate_z(s.z * TAU * dt);
+    }
+}
+
+fn added_lamp(
+    lamp: Query<(Entity, &Parent, &Lamp), Added<Lamp>>,
+    all: Query<&Transform>,
+    mut commands: Commands
+) {
+    for (e, parent, lamp) in lamp.iter() {
+        if let Ok(t) = all.get(parent.get()) {
+            commands.spawn((
+                PointLight {
+                    intensity: lamp.light,
+                    color: Color::linear_rgb(lamp.r,lamp.g, lamp.b),
+                    shadows_enabled: true,
+                    ..default()
+                },
+                Transform {
+                    translation: t.translation.clone(),
+                    ..default()
+                }
+            ));
+        }
+        commands.entity(e).despawn();
+    }
+}
+
+
+fn on_scene_ready(
+    trigger: Trigger<SceneInstanceReady>,
+    children: Query<&Children>,
+    lamps_query: Query<(&Parent, &Lamp)>,
+    deets: Query<&Transform>,
+) {
+    let root = trigger.entity();
+    for entity in children.iter_descendants(root) {
+        if let Ok((p, lamp)) = lamps_query.get(entity) {
+            if let Ok(transform) = deets.get(p.get()) {
+                info!("Light onread: {} {:?}", lamp.light, transform);
+            }
+
+        }
     }
 }
