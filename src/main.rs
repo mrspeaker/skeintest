@@ -29,43 +29,18 @@ struct Spin {
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
 struct Lamp {
-	r: f32,
-	g: f32,
-	b: f32,
 	light: f32,
-}
-
-#[derive(Component, Reflect, Debug)]
-#[reflect(Component)]
-struct LampCol {
-    _col: Color,
-    r: f32,
+    col: Color
 }
 
 #[derive(Component)]
 struct MyCam;
-
-#[test]
-fn color_support() {
-    let value = LampCol {
-        _col: Color::srgba(1.0, 1.0, 1.0, 1.0),
-        r: 0.0
-    };
-
-    let mut type_registry = TypeRegistry::new();
-    type_registry.register::<LampCol>();
-    let serializer = ReflectSerializer::new(&value, &type_registry);
-    let json_string = serde_json::ser::to_string(&serializer).unwrap();
-
-    assert_eq!(json_string, "");
-}
 
 fn main() {
     App::new()
         .register_type::<Player>()
         .register_type::<Spin>()
         .register_type::<Lamp>()
-        .register_type::<LampCol>()
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
             DefaultPlugins,
@@ -76,7 +51,6 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, (
             file_drop,
-            added_lamp,
             move_player,
             update_cam,
             update_spin
@@ -184,43 +158,33 @@ fn update_spin(
     }
 }
 
-fn added_lamp(
-    lamp: Query<(Entity, &Parent, &Lamp), Added<Lamp>>,
-    all: Query<&Transform>,
-    mut commands: Commands
-) {
-    for (e, parent, lamp) in lamp.iter() {
-        if let Ok(t) = all.get(parent.get()) {
-            commands.spawn((
-                PointLight {
-                    intensity: lamp.light,
-                    color: Color::linear_rgb(lamp.r,lamp.g, lamp.b),
-                    shadows_enabled: true,
-                    ..default()
-                },
-                Transform {
-                    translation: t.translation.clone(),
-                    ..default()
-                }
-            ));
-        }
-        commands.entity(e).despawn();
-    }
-}
-
-
 fn on_scene_ready(
     trigger: Trigger<SceneInstanceReady>,
     children: Query<&Children>,
     lamps_query: Query<(&Parent, &Lamp)>,
     deets: Query<&Transform>,
+    mut commands: Commands
 ) {
     let root = trigger.entity();
-    for entity in children.iter_descendants(root) {
-        if let Ok((p, lamp)) = lamps_query.get(entity) {
+    for child in children.iter_descendants(root) {
+        if let Ok((p, lamp)) = lamps_query.get(child) {
             if let Ok(transform) = deets.get(p.get()) {
                 info!("Light onread: {} {:?}", lamp.light, transform);
+                commands.spawn((
+                    PointLight {
+                        intensity: lamp.light,
+                        color: lamp.col,
+                        shadows_enabled: true,
+                        ..default()
+                    },
+                    Transform {
+                        translation: transform.translation.clone(),
+                        ..default()
+                    }
+                ));
+
             }
+            commands.entity(child).despawn_recursive();
 
         }
     }
