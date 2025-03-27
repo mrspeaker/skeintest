@@ -53,6 +53,14 @@ enum GameStates {
 pub struct PlayerAssets {
     #[asset(path="models/anim.glb#Scene0")]
     player: Handle<Scene>,
+    #[asset(path="models/anim.glb#Animation1")]
+    anim0: Handle<AnimationClip>,
+}
+
+#[derive(Component)]
+struct AnimationToPlay {
+    graph_handle: Handle<AnimationGraph>,
+    index: AnimationNodeIndex,
 }
 
 fn main() {
@@ -87,37 +95,58 @@ fn main() {
 
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
-    player: Res<PlayerAssets>
+    player: Res<PlayerAssets>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     commands.spawn((
         MyCam,
         Camera3d::default(),
         Transform::from_xyz(17.0, 10.0, 30.0)
             .looking_at(Vec3::new(5.0, 0.0, 0.0), Dir3::Y),
-));
-    /*commands.spawn((
-        Mesh2d(meshes.add(Rectangle::default())),
-        MeshMaterial2d(materials.add(Color::from(Color::WHITE))),
-        Transform::default().with_scale(Vec3::splat(128.)),
-    ));*/
+    ));
+
 
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
 
+
+    // Anim for player
+    let (graph, node_index) =
+        AnimationGraph::from_clip(player.anim0.clone());
+    let graph_handle = graphs.add(graph);
+
     commands.spawn((
         Name::new("APlayer"),
         SceneRoot(player.player.clone()),
         Transform::from_xyz(5.0, 0.0, 2.0),
-        Playa
-    )).observe(|trigger: Trigger<SceneInstanceReady>, mut cmds: Commands| {
-        let ent = trigger.entity();
-        info!("player loaded. {}", ent);
-        //cmds.entity(ent).insert
-    });
+        Playa,
+        AnimationToPlay {
+            graph_handle,
+            index: node_index
+        }
+    )).observe(
+        |trigger: Trigger<SceneInstanceReady>,
+        mut cmds: Commands,
+        children: Query<&Children>,
+        animations_to_play: Query<&AnimationToPlay>,
+        mut players: Query<&mut AnimationPlayer>,
+        | {
+            let Ok(animation_to_play) = animations_to_play.get(trigger.entity()) else {
+                return;
+            };
+
+            for child in children.iter_descendants(trigger.entity()) {
+                if let Ok(mut player) = players.get_mut(child) {
+                    player.play(animation_to_play.index).repeat();
+                    // Link graph to mesh
+                    cmds
+                        .entity(child)
+                        .insert(AnimationGraphHandle(animation_to_play.graph_handle.clone()));
+                }
+            }
+        });
 
     // Ambient light
     commands.insert_resource(AmbientLight {
@@ -200,7 +229,7 @@ fn on_scene_ready(
     children: Query<&Children>,
     lamps_query: Query<(&Parent, &Lamp)>,
     deets: Query<&Transform>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     let root = trigger.entity();
     for child in children.iter_descendants(root) {
