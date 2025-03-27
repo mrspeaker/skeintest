@@ -1,9 +1,14 @@
 use bevy::{prelude::*, reflect::{TypeRegistry, serde::*}, scene::SceneInstanceReady};
+use bevy_asset_loader::prelude::*;
+use bevy_asset_loader::asset_collection::AssetCollection;
 use bevy_skein::SkeinPlugin;
 use std::f32::consts::*;
 use avian3d::prelude::*;
 
 use std::f32::consts::TAU;
+
+#[derive(Component)]
+struct Playa;
 
 #[derive(Debug, Event)]
 pub struct DroppedFile {
@@ -36,6 +41,20 @@ struct Lamp {
 #[derive(Component)]
 struct MyCam;
 
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+enum GameStates {
+    #[default]
+    AssetLoading,
+    Next,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct PlayerAssets {
+    #[asset(path="models/anim.glb#Scene0")]
+    player: Handle<Scene>,
+}
+
 fn main() {
     App::new()
         .register_type::<Player>()
@@ -48,12 +67,19 @@ fn main() {
             PhysicsPlugins::default(),
             SkeinPlugin::default()
         ))
-        .add_systems(Startup, setup)
+        .init_state::<GameStates>()
+        .add_loading_state(
+            LoadingState::new(GameStates::AssetLoading)
+                .continue_to_state(GameStates::Next)
+                .load_collection::<PlayerAssets>(),
+        )
+        .add_systems(OnEnter(GameStates::Next), setup)
         .add_systems(Update, (
             file_drop,
             move_player,
             update_cam,
-            update_spin
+            update_spin,
+            update_playa
         ))
         .add_observer(on_dropped)
         .run();
@@ -64,6 +90,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
+    player: Res<PlayerAssets>
 ) {
     commands.spawn((
         MyCam,
@@ -81,6 +108,16 @@ fn setup(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
 
+    commands.spawn((
+        Name::new("APlayer"),
+        SceneRoot(player.player.clone()),
+        Transform::from_xyz(5.0, 0.0, 2.0),
+        Playa
+    )).observe(|trigger: Trigger<SceneInstanceReady>, mut cmds: Commands| {
+        let ent = trigger.entity();
+        info!("player loaded. {}", ent);
+        //cmds.entity(ent).insert
+    });
 
     // Ambient light
     commands.insert_resource(AmbientLight {
@@ -187,5 +224,32 @@ fn on_scene_ready(
             commands.entity(child).despawn_recursive();
 
         }
+    }
+}
+
+fn update_playa(
+    mut player: Query<&mut Transform, With<Playa>>,
+    time: Res<Time>,
+    input: Res<ButtonInput<KeyCode>>,
+
+) {
+    for mut t in player.iter_mut() {
+        let power = 3.0;
+        let mut v = Vec2::new(0.0, 0.0);
+        if input.pressed(KeyCode::KeyW) {
+            v.y -= power;
+        }
+        if input.pressed(KeyCode::KeyS) {
+            v.y += power;
+        }
+        if input.pressed(KeyCode::KeyA) {
+            v.x -= power;
+        }
+        if input.pressed(KeyCode::KeyD) {
+            v.x += power;
+        }
+
+        t.translation.x += v.x * time.delta_secs();
+        t.translation.z += v.y * time.delta_secs();
     }
 }
