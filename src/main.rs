@@ -53,14 +53,19 @@ enum GameStates {
 pub struct PlayerAssets {
     #[asset(path="models/anim.glb#Scene0")]
     player: Handle<Scene>,
-    #[asset(path="models/anim.glb#Animation1")]
+    #[asset(path="models/anim.glb#Animation0")]
     anim0: Handle<AnimationClip>,
+    #[asset(path="models/anim.glb#Animation1")]
+    anim1: Handle<AnimationClip>,
 }
 
 #[derive(Component)]
-struct AnimationToPlay {
-    graph_handle: Handle<AnimationGraph>,
-    index: AnimationNodeIndex,
+struct PlayerPlayer;
+
+#[derive(Component)]
+struct AnimationsToPlay {
+    graph: Handle<AnimationGraph>,
+    indices: Vec<AnimationNodeIndex>,
 }
 
 fn main() {
@@ -113,8 +118,11 @@ fn setup(
 
 
     // Anim for player
-    let (graph, node_index) =
-        AnimationGraph::from_clip(player.anim0.clone());
+    let (graph, indices) =
+        AnimationGraph::from_clips([
+            player.anim0.clone(),
+            player.anim1.clone(),
+        ]);
     let graph_handle = graphs.add(graph);
 
     commands.spawn((
@@ -122,28 +130,29 @@ fn setup(
         SceneRoot(player.player.clone()),
         Transform::from_xyz(5.0, 0.0, 2.0),
         Playa,
-        AnimationToPlay {
-            graph_handle,
-            index: node_index
+        AnimationsToPlay {
+            graph: graph_handle,
+            indices
         }
     )).observe(
         |trigger: Trigger<SceneInstanceReady>,
         mut cmds: Commands,
         children: Query<&Children>,
-        animations_to_play: Query<&AnimationToPlay>,
-        mut players: Query<&mut AnimationPlayer>,
+        animations_to_play: Query<&AnimationsToPlay>,
+        mut players: Query<(Entity, &mut AnimationPlayer)>,
         | {
-            let Ok(animation_to_play) = animations_to_play.get(trigger.entity()) else {
+            let Ok(animations) = animations_to_play.get(trigger.entity()) else {
                 return;
             };
 
             for child in children.iter_descendants(trigger.entity()) {
-                if let Ok(mut player) = players.get_mut(child) {
-                    player.play(animation_to_play.index).repeat();
+                if let Ok((pe, mut player)) = players.get_mut(child) {
+                    player.play(animations.indices[0]).repeat();
+                    cmds.entity(pe).insert(PlayerPlayer);
                     // Link graph to mesh
                     cmds
                         .entity(child)
-                        .insert(AnimationGraphHandle(animation_to_play.graph_handle.clone()));
+                        .insert(AnimationGraphHandle(animations.graph.clone()));
                 }
             }
         });
@@ -257,22 +266,39 @@ fn on_scene_ready(
 }
 
 fn update_playa(
-    mut player: Query<&mut Transform, With<Playa>>,
+    mut player: Query<(Entity, &mut Transform), With<Playa>>,
     time: Res<Time>,
     input: Res<ButtonInput<KeyCode>>,
-
+    animations_to_play: Query<&AnimationsToPlay>,
+    mut players: Query<&mut AnimationPlayer, With<PlayerPlayer>>,
 ) {
-    for mut t in player.iter_mut() {
+
+    for (e, mut t) in player.iter_mut() {
+        let Ok(animations) = animations_to_play.get(e) else {
+            info!("no anim");
+            continue;
+        };
+        let Ok(mut anim_player) = players.get_single_mut() else {
+            info!("no player");
+            continue;
+        };
+
         let power = 3.0;
         let mut v = Vec2::new(0.0, 0.0);
         if input.pressed(KeyCode::KeyW) {
             v.y -= power;
+            anim_player.stop(animations.indices[1]);
+            anim_player.play(animations.indices[0]).repeat();
         }
         if input.pressed(KeyCode::KeyS) {
             v.y += power;
+            anim_player.stop(animations.indices[0]);
+            anim_player.play(animations.indices[1]).repeat();
         }
         if input.pressed(KeyCode::KeyA) {
             v.x -= power;
+            anim_player.stop_all();
+
         }
         if input.pressed(KeyCode::KeyD) {
             v.x += power;
