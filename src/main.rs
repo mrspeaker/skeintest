@@ -38,7 +38,8 @@ struct Lamp {
     col: Color
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
 struct MyCam;
 
 
@@ -73,6 +74,7 @@ fn main() {
         .register_type::<Player>()
         .register_type::<Spin>()
         .register_type::<Lamp>()
+        .register_type::<MyCam>()
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
             DefaultPlugins,
@@ -104,18 +106,18 @@ fn setup(
     player: Res<PlayerAssets>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
+    /*
     commands.spawn((
         MyCam,
         Camera3d::default(),
         Transform::from_xyz(17.0, 10.0, 30.0)
             .looking_at(Vec3::new(5.0, 0.0, 0.0), Dir3::Y),
     ));
-
+    */
 
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
-
 
     // Anim for player
     let (graph, indices) =
@@ -128,7 +130,7 @@ fn setup(
     commands.spawn((
         Name::new("APlayer"),
         SceneRoot(player.player.clone()),
-        Transform::from_xyz(5.0, 0.0, 2.0),
+        Transform::from_xyz(0.0, 0.0, 0.0),
         Playa,
         AnimationsToPlay {
             graph: graph_handle,
@@ -142,11 +144,13 @@ fn setup(
         mut players: Query<(Entity, &mut AnimationPlayer)>,
         | {
             let Ok(animations) = animations_to_play.get(trigger.entity()) else {
+                info!("no anims in player");
                 return;
             };
 
             for child in children.iter_descendants(trigger.entity()) {
                 if let Ok((pe, mut player)) = players.get_mut(child) {
+                    info!("We got a placa");
                     player.play(animations.indices[0]).repeat();
                     cmds.entity(pe).insert(PlayerPlayer);
                     // Link graph to mesh
@@ -237,6 +241,7 @@ fn on_scene_ready(
     trigger: Trigger<SceneInstanceReady>,
     children: Query<&Children>,
     lamps_query: Query<(&Parent, &Lamp)>,
+    camera_query: Query<(&Parent, &MyCam)>,
     deets: Query<&Transform>,
     mut commands: Commands,
 ) {
@@ -261,6 +266,9 @@ fn on_scene_ready(
             }
             commands.entity(child).despawn_recursive();
 
+        }
+        if let Ok((p, cam)) = camera_query.get(child) {
+            info!("gots a cam");
         }
     }
 }
