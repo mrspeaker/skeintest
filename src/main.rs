@@ -1,4 +1,4 @@
-use bevy::{prelude::*, reflect::{TypeRegistry, serde::*}, scene::SceneInstanceReady};
+use bevy::{prelude::*, reflect::{TypeRegistry, serde::*}, scene::SceneInstanceReady, core_pipeline::{bloom::Bloom, prepass::{DepthPrepass, NormalPrepass}}};
 use bevy_asset_loader::prelude::*;
 use bevy_asset_loader::asset_collection::AssetCollection;
 use bevy_skein::SkeinPlugin;
@@ -77,7 +77,7 @@ fn main() {
         .register_type::<MyCam>()
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(ImagePlugin::default_nearest()),
             // PhysicsDebugPlugin::default(),
             PhysicsPlugins::default(),
             SkeinPlugin::default()
@@ -91,7 +91,6 @@ fn main() {
         .add_systems(OnEnter(GameStates::Next), setup)
         .add_systems(Update, (
             file_drop,
-            move_player,
             update_cam,
             update_spin,
             update_playa
@@ -106,14 +105,25 @@ fn setup(
     player: Res<PlayerAssets>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    /*
     commands.spawn((
         MyCam,
         Camera3d::default(),
-        Transform::from_xyz(17.0, 10.0, 30.0)
-            .looking_at(Vec3::new(5.0, 0.0, 0.0), Dir3::Y),
+        Camera {
+            hdr: true,
+            ..default()
+        },
+        DepthPrepass,
+        NormalPrepass,
+        Bloom::default(),
+        Transform::from_xyz(2.0, 5.0, 7.0)
+            .looking_at(Vec3::new(-2.0, 2.0, 0.0), Dir3::Y),
+        EnvironmentMapLight {
+            diffuse_map: asset_server.load("pisa_diffuse_rgb9e5_zstd.ktx2"),
+            specular_map: asset_server.load("pisa_specular_rgb9e5_zstd.ktx2"),
+            intensity: 300.0,
+            ..default()
+        },
     ));
-    */
 
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
@@ -150,7 +160,6 @@ fn setup(
 
             for child in children.iter_descendants(trigger.entity()) {
                 if let Ok((pe, mut player)) = players.get_mut(child) {
-                    info!("We got a placa");
                     player.play(animations.indices[0]).repeat();
                     cmds.entity(pe).insert(PlayerPlayer);
                     // Link graph to mesh
@@ -162,10 +171,10 @@ fn setup(
         });
 
     // Ambient light
-    commands.insert_resource(AmbientLight {
+/*    commands.insert_resource(AmbientLight {
         color: Color::linear_rgb(1.0,1.0, 1.0),
         brightness: 50.0,
-    });
+    }); */
 
 }
 
@@ -178,15 +187,6 @@ fn file_drop(
             println!("Dropped file with path: {:?}, in window id: {:?}", path_buf, window);
             commands.trigger(DroppedFile{ name: path_buf.to_str().unwrap_or("").to_string()});
         }
-    }
-}
-
-fn move_player(
-    time: Res<Time>,
-    mut players: Query<&mut Transform, With<Player>>
-){
-    for mut t in players.iter_mut() {
-        t.translation.x += time.delta_secs();
     }
 }
 
@@ -252,7 +252,7 @@ fn on_scene_ready(
                 info!("Light onread: {} {:?}", lamp.light, transform);
                 commands.spawn((
                     PointLight {
-                        intensity: lamp.light,
+                        intensity: lamp.light * 10.0,
                         color: lamp.col,
                         shadows_enabled: true,
                         ..default()
