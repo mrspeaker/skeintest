@@ -63,7 +63,7 @@ pub struct PlayerAssets {
     player: Handle<Scene>,
     #[asset(path="models/character.glb#Animation0")]
     anim0: Handle<AnimationClip>,
-    #[asset(path="models/character.glb#Animation0")]
+    #[asset(path="models/character.glb#Animation1")]
     anim1: Handle<AnimationClip>,
 }
 
@@ -167,7 +167,7 @@ fn setup(
 
             for child in children.iter_descendants(trigger.entity()) {
                 if let Ok((pe, mut player)) = players.get_mut(child) {
-                    player.play(animations.indices[0]).repeat();
+                    player.play(animations.indices[1]).repeat();
                     cmds.entity(pe).insert(PlayerPlayer);
                     // Link graph to mesh
                     cmds
@@ -315,8 +315,10 @@ fn update_playa(
             t.rotation = Quat::from_rotation_y(PI / 2.0);
         }
         if v.length() == 0.0 {
-            anim_player.stop_all();
+            anim_player.stop(animations.indices[0]);
+            anim_player.play(animations.indices[1]).repeat().set_speed(anim_speed);
         } else {
+            anim_player.stop(animations.indices[1]);
             anim_player.play(animations.indices[0]).repeat().set_speed(anim_speed);
         }
 
