@@ -1,4 +1,11 @@
-use bevy::{prelude::*, reflect::{TypeRegistry, serde::*}, scene::SceneInstanceReady, core_pipeline::{bloom::Bloom, prepass::{DepthPrepass, NormalPrepass}}};
+use bevy::{
+    prelude::*,
+    scene::SceneInstanceReady,
+    core_pipeline::{
+        bloom::Bloom,
+        prepass::{ DepthPrepass, NormalPrepass }
+    }
+};
 use bevy_asset_loader::prelude::*;
 use bevy_asset_loader::asset_collection::AssetCollection;
 use bevy_skein::SkeinPlugin;
@@ -52,11 +59,11 @@ enum GameStates {
 
 #[derive(AssetCollection, Resource)]
 pub struct PlayerAssets {
-    #[asset(path="models/anim.glb#Scene0")]
+    #[asset(path="models/character.glb#Scene0")]
     player: Handle<Scene>,
-    #[asset(path="models/anim.glb#Animation0")]
+    #[asset(path="models/character.glb#Animation0")]
     anim0: Handle<AnimationClip>,
-    #[asset(path="models/anim.glb#Animation1")]
+    #[asset(path="models/character.glb#Animation0")]
     anim1: Handle<AnimationClip>,
 }
 
@@ -118,8 +125,8 @@ fn setup(
         Transform::from_xyz(2.0, 5.0, 7.0)
             .looking_at(Vec3::new(-2.0, 2.0, 0.0), Dir3::Y),
         EnvironmentMapLight {
-            diffuse_map: asset_server.load("pisa_diffuse_rgb9e5_zstd.ktx2"),
-            specular_map: asset_server.load("pisa_specular_rgb9e5_zstd.ktx2"),
+            diffuse_map: asset_server.load("hdrs/pisa_diffuse_rgb9e5_zstd.ktx2"),
+            specular_map: asset_server.load("hdrs/pisa_specular_rgb9e5_zstd.ktx2"),
             intensity: 300.0,
             ..default()
         },
@@ -140,7 +147,7 @@ fn setup(
     commands.spawn((
         Name::new("APlayer"),
         SceneRoot(player.player.clone()),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(0.0, -0.1, 0.0),
         Playa,
         AnimationsToPlay {
             graph: graph_handle,
@@ -192,9 +199,9 @@ fn file_drop(
 
 fn on_dropped(
     trigger: Trigger<DroppedFile>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut _commands: Commands,
+    mut _meshes: ResMut<Assets<Mesh>>,
+    mut _materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let ev = trigger.event();
     println!("yop {:?}", ev.name);
@@ -241,7 +248,7 @@ fn on_scene_ready(
     trigger: Trigger<SceneInstanceReady>,
     children: Query<&Children>,
     lamps_query: Query<(&Parent, &Lamp)>,
-    camera_query: Query<(&Parent, &MyCam)>,
+    // camera_query: Query<(&Parent, &MyCam)>,
     deets: Query<&Transform>,
     mut commands: Commands,
 ) {
@@ -252,7 +259,7 @@ fn on_scene_ready(
                 info!("Light onread: {} {:?}", lamp.light, transform);
                 commands.spawn((
                     PointLight {
-                        intensity: lamp.light * 10.0,
+                        intensity: lamp.light * 2.0,
                         color: lamp.col,
                         shadows_enabled: true,
                         ..default()
@@ -266,9 +273,6 @@ fn on_scene_ready(
             }
             commands.entity(child).despawn_recursive();
 
-        }
-        if let Ok((p, cam)) = camera_query.get(child) {
-            info!("gots a cam");
         }
     }
 }
@@ -291,25 +295,29 @@ fn update_playa(
             continue;
         };
 
-        let power = 3.0;
+        let power = 2.0;
+        let anim_speed = 1.0;
         let mut v = Vec2::new(0.0, 0.0);
         if input.pressed(KeyCode::KeyW) {
             v.y -= power;
-            anim_player.stop(animations.indices[1]);
-            anim_player.play(animations.indices[0]).repeat();
+            t.rotation = Quat::from_rotation_y(-PI);
         }
         if input.pressed(KeyCode::KeyS) {
             v.y += power;
-            anim_player.stop(animations.indices[0]);
-            anim_player.play(animations.indices[1]).repeat();
+            t.rotation = Quat::from_rotation_y(0.0);
         }
         if input.pressed(KeyCode::KeyA) {
             v.x -= power;
-            anim_player.stop_all();
-
+            t.rotation = Quat::from_rotation_y(-PI / 2.0);
         }
         if input.pressed(KeyCode::KeyD) {
             v.x += power;
+            t.rotation = Quat::from_rotation_y(PI / 2.0);
+        }
+        if v.length() == 0.0 {
+            anim_player.stop_all();
+        } else {
+            anim_player.play(animations.indices[0]).repeat().set_speed(anim_speed);
         }
 
         t.translation.x += v.x * time.delta_secs();
