@@ -160,12 +160,12 @@ fn setup(
         animations_to_play: Query<&AnimationsToPlay>,
         mut players: Query<(Entity, &mut AnimationPlayer)>,
         | {
-            let Ok(animations) = animations_to_play.get(trigger.entity()) else {
+            let Ok(animations) = animations_to_play.get(trigger.target()) else {
                 info!("no anims in player");
                 return;
             };
 
-            for child in children.iter_descendants(trigger.entity()) {
+            for child in children.iter_descendants(trigger.target()) {
                 if let Ok((pe, mut player)) = players.get_mut(child) {
                     player.play(animations.indices[1]).repeat();
                     cmds.entity(pe).insert(PlayerPlayer);
@@ -247,15 +247,15 @@ fn update_spin(
 fn on_scene_ready(
     trigger: Trigger<SceneInstanceReady>,
     children: Query<&Children>,
-    lamps_query: Query<(&Parent, &Lamp)>,
+    lamps_query: Query<(&ChildOf, &Lamp)>,
     // camera_query: Query<(&Parent, &MyCam)>,
     deets: Query<&Transform>,
     mut commands: Commands,
 ) {
-    let root = trigger.entity();
+    let root = trigger.target();
     for child in children.iter_descendants(root) {
         if let Ok((p, lamp)) = lamps_query.get(child) {
-            if let Ok(transform) = deets.get(p.get()) {
+            if let Ok(transform) = deets.get(p.parent) {
                 info!("Light onread: {} {:?}", lamp.light, transform);
                 commands.spawn((
                     PointLight {
@@ -271,7 +271,7 @@ fn on_scene_ready(
                 ));
 
             }
-            commands.entity(child).despawn_recursive();
+            commands.entity(child).despawn();
 
         }
     }
@@ -290,13 +290,13 @@ fn update_playa(
             info!("no anim");
             continue;
         };
-        let Ok(mut anim_player) = players.get_single_mut() else {
+        let Ok(mut anim_player) = players.single_mut() else {
             info!("no player");
             continue;
         };
 
         let power = 2.0;
-        let anim_speed = 1.0;
+        let anim_speed = 1.5;
         let mut v = Vec2::new(0.0, 0.0);
         if input.pressed(KeyCode::KeyW) {
             v.y -= power;
