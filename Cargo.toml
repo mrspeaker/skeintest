@@ -7,7 +7,7 @@ edition = "2024"
 # avian3d = "0.2.1"
 avian3d = { git = "https://github.com/Jondolf/avian.git", branch="main" }
 #bevy = { version = "0.15.3", features = ["exr"] }
-bevy = { version = "0.16.0-rc.1", features = ["exr"] }
+bevy = { version = "0.16.0-rc.3", features = ["exr"] }
 #bevy_asset_loader = "0.22.0"
 bevy_asset_loader = { git = "https://github.com/NiklasEi/bevy_asset_loader.git", branch="bevy_main" }
 #bevy_skein = "0.1.2"
