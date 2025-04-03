@@ -3,7 +3,7 @@ use bevy::{
     scene::SceneInstanceReady,
     core_pipeline::{
         bloom::Bloom,
-        prepass::{ DepthPrepass, NormalPrepass }
+        prepass::{ DepthPrepass, NormalPrepass }, dof::DepthOfField, tonemapping::Tonemapping
     }
 };
 use bevy_asset_loader::prelude::*;
@@ -61,6 +61,8 @@ enum GameStates {
 pub struct PlayerAssets {
     #[asset(path="models/character.glb#Scene0")]
     player: Handle<Scene>,
+    #[asset(path="models/building.glb#Scene0")]
+    building: Handle<Scene>,
     #[asset(path="models/character.glb#Animation0")]
     anim0: Handle<AnimationClip>,
     #[asset(path="models/character.glb#Animation1")]
@@ -119,15 +121,22 @@ fn setup(
             hdr: true,
             ..default()
         },
-        DepthPrepass,
-        NormalPrepass,
-        Bloom::default(),
+        Tonemapping::TonyMcMapface,
+        Bloom::NATURAL,
+        //DepthPrepass,
+        //NormalPrepass,
+        //Bloom::default(),
+        DepthOfField {
+            focal_distance: 499.0,
+            aperture_f_stops: 20.0,
+            ..default()
+        },
         Transform::from_xyz(2.0, 5.0, 7.0)
             .looking_at(Vec3::new(-2.0, 2.0, 0.0), Dir3::Y),
         EnvironmentMapLight {
             diffuse_map: asset_server.load("hdrs/pisa_diffuse_rgb9e5_zstd.ktx2"),
             specular_map: asset_server.load("hdrs/pisa_specular_rgb9e5_zstd.ktx2"),
-            intensity: 300.0,
+            intensity: 700.0,
             ..default()
         },
     ));
@@ -135,6 +144,13 @@ fn setup(
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
+
+    commands.spawn((
+        Name::new("Building"),
+        SceneRoot(player.building.clone()),
+        Transform::from_xyz(-12.25, 0.0, -2.1),
+    ));
+
 
     // Anim for player
     let (graph, indices) =
