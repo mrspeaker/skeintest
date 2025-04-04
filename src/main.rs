@@ -84,7 +84,7 @@ fn main() {
         .register_type::<Spin>()
         .register_type::<Lamp>()
         .register_type::<MyCam>()
-        .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
+//        .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             // PhysicsDebugPlugin::default(),
@@ -141,6 +141,20 @@ fn setup(
         },
     ));
 
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::FULL_DAYLIGHT,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Quat::from_rotation_x(-PI / 2.0 -0.4),
+            ..default()
+        },
+    ));
+
+
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
@@ -149,6 +163,20 @@ fn setup(
         Name::new("Building"),
         SceneRoot(player.building.clone()),
         Transform::from_xyz(-12.25, 0.0, -2.1),
+    ));
+
+    commands.spawn((
+        Name::new("Building"),
+        SceneRoot(player.building.clone()),
+        Transform::from_xyz(-12.25, 0.0, -6.1)
+            .with_rotation(Quat::from_rotation_y(-PI*1.5)),
+    ));
+
+    commands.spawn((
+        Name::new("Building"),
+        SceneRoot(player.building.clone()),
+        Transform::from_xyz(-12.25, 0.0, -12.1)
+            .with_rotation(Quat::from_rotation_y(-PI/2.0)),
     ));
 
 
