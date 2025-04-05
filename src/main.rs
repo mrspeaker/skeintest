@@ -1,12 +1,18 @@
 use bevy::{
+    core_pipeline::prepass::{
+        DepthPrepass,
+        MotionVectorPrepass,
+        NormalPrepass
+    },
     prelude::*,
-    scene::SceneInstanceReady,
-    core_pipeline::prepass::{ DepthPrepass, MotionVectorPrepass, NormalPrepass },
     render::{
         render_resource::{AsBindGroup, ShaderRef, ShaderType},
-        camera::ScalingMode
+        camera::{ScalingMode, Viewport},
     },
+    scene::SceneInstanceReady,
+    window::WindowResized
 };
+
 use bevy_asset_loader::prelude::*;
 use bevy_asset_loader::asset_collection::AssetCollection;
 use bevy_skein::SkeinPlugin;
@@ -18,17 +24,14 @@ use std::f32::consts::TAU;
 const PREPASS_SHADER_ASSET_PATH: &str = "shaders/show_prepass.wgsl";
 const MATERIAL_SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
 
-static mut VIEW:bool = false;
-
-#[derive(Resource)]
-struct GoalsReached {
-    main_goal: bool,
-    bonus: u32,
-}
-
 #[derive(Resource)]
 struct Config {
     view: bool,
+}
+
+#[derive(Component)]
+struct CameraPosition {
+    pos: UVec2,
 }
 
 #[derive(Component)]
@@ -157,7 +160,7 @@ fn main() {
         .register_type::<Spin>()
         .register_type::<Lamp>()
         .register_type::<MyCam>()
-//        .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.05)))
+        .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             // PhysicsDebugPlugin::default(),
@@ -177,9 +180,13 @@ fn main() {
                 .continue_to_state(GameStates::Next)
                 .load_collection::<PlayerAssets>(),
         )
-        .add_systems(OnEnter(GameStates::Next), setup)
+        .add_systems(Startup, setup_init)
+        .add_systems(OnEnter(GameStates::Next), setup_after_load)
         .add_systems(Update, (
             file_drop,
+            set_camera_viewports
+        ))
+        .add_systems(Update, (
             update_cam,
             update_spin,
             update_playa,
@@ -189,43 +196,51 @@ fn main() {
         .run();
 }
 
-fn setup(
+fn setup_init(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    player: Res<PlayerAssets>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut depth_materials: ResMut<Assets<PrepassOutputMaterial>>,
 ) {
     commands.insert_resource(Config { view: false });
-    commands.spawn((
-        MyCam,
-        Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
-        Projection::from(OrthographicProjection {
-            scaling_mode: ScalingMode::FixedVertical {
-                viewport_height: 10.0, // world units per pixel of window height.
+    for (index, (name, pos, look)) in [
+        ("Top", Vec3::new(-5.0, 1.0, 1.0), Vec3::new(-5.0, 1.0, 0.0)),
+        ("Bottom", Vec3::new(1.0, 1.0, -5.3), Vec3::new(0.0, 1.0, -5.3)),
+    ]
+        .iter()
+        .enumerate()
+    {
+        commands.spawn((
+            MyCam,
+            Name::new(*name),
+            Camera3d::default(),
+            Camera {
+                order: index as isize,
+                hdr: true,
+                ..default()
             },
-            ..OrthographicProjection::default_3d()
-        }),
-        //Bloom::default(),
-        DepthPrepass,
-        NormalPrepass,
-        MotionVectorPrepass,
-//        Transform::from_xyz(2.0, 5.0, 7.0)
-//            .looking_at(Vec3::new(-2.0, 2.0, 0.0), Dir3::Y),
-        Transform::from_xyz(7.0, 5.0, 7.0)
-            .looking_at(Vec3::new(0.0, 3.0, 0.0), Dir3::Y),
-        EnvironmentMapLight {
-            diffuse_map: asset_server.load("hdrs/pisa_diffuse_rgb9e5_zstd.ktx2"),
-            specular_map: asset_server.load("hdrs/pisa_specular_rgb9e5_zstd.ktx2"),
-            intensity: 700.0,
-            ..default()
-        },
-    ));
+            CameraPosition {
+                pos: UVec2::new(0, (index % 2) as u32),
+            },
+            Projection::from(OrthographicProjection {
+                scaling_mode: ScalingMode::FixedVertical {
+                    viewport_height: 4.0, // world units per pixel of window height.
+                },
+                ..OrthographicProjection::default_3d()
+            }),
+            //Bloom::default(),
+            DepthPrepass,
+            NormalPrepass,
+            MotionVectorPrepass,
+            Transform::from_translation(*pos).looking_at(*look, Dir3::Y),
+            EnvironmentMapLight {
+                diffuse_map: asset_server.load("hdrs/pisa_diffuse_rgb9e5_zstd.ktx2"),
+                specular_map: asset_server.load("hdrs/pisa_specular_rgb9e5_zstd.ktx2"),
+                intensity: 1700.0,
+                ..default()
+            },
+        ));
+    }
 
     commands.spawn((
         Mesh3d(meshes.add(Rectangle::new(5.0, 5.0))),
@@ -237,6 +252,14 @@ fn setup(
     //    NotShadowCaster,
     ));
 
+}
+
+fn setup_after_load(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    player: Res<PlayerAssets>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+) {
     commands.spawn((
         DirectionalLight {
             illuminance: light_consts::lux::FULL_DAYLIGHT,
@@ -250,11 +273,18 @@ fn setup(
         },
     ));
 
+        // Ambient light
+/*    commands.insert_resource(AmbientLight {
+        color: Color::linear_rgb(1.0,1.0, 1.0),
+        brightness: 5000.0,
+        ..default()
+    });*/
 
     commands.spawn(SceneRoot(asset_server.load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
 
+    /*
     commands.spawn((
         Name::new("Building"),
         SceneRoot(player.building.clone()),
@@ -273,7 +303,8 @@ fn setup(
         SceneRoot(player.building.clone()),
         Transform::from_xyz(-12.25, 0.0, -12.1)
             .with_rotation(Quat::from_rotation_y(-PI/2.0)),
-    ));
+));
+    */
 
 
     // Anim for player
@@ -287,7 +318,7 @@ fn setup(
     commands.spawn((
         Name::new("APlayer"),
         SceneRoot(player.player.clone()),
-        Transform::from_xyz(0.0, -0.1, 0.0),
+        Transform::from_xyz(-1.0, -0.1, -1.0),
         Playa,
         AnimationsToPlay {
             graph: graph_handle,
@@ -317,13 +348,27 @@ fn setup(
             }
         });
 
-    // Ambient light
-/*    commands.insert_resource(AmbientLight {
-        color: Color::linear_rgb(1.0,1.0, 1.0),
-        brightness: 50.0,
-    }); */
-
 }
+
+fn set_camera_viewports(
+    windows: Query<&Window>,
+    mut resize_events: EventReader<WindowResized>,
+    mut query: Query<(&CameraPosition, &mut Camera)>,
+) {
+    for resize_event in resize_events.read() {
+        let window = windows.get(resize_event.window).unwrap();
+        let phys = window.physical_size();
+        let size =  UVec2::new(phys.x, phys.y / 2);
+        for (cam_pos, mut camera) in &mut query {
+            camera.viewport = Some(Viewport {
+                physical_position: cam_pos.pos * size,
+                physical_size: size,
+                ..default()
+            });
+        }
+    }
+}
+
 
 fn file_drop(
     mut evr_dnd: EventReader<FileDragAndDrop>,
@@ -380,6 +425,11 @@ fn update_cam(
             *t = Transform::from_xyz(7.0, 1.0, -6.5)
                 .looking_at(Vec3::new(0.0, 1.0, -6.5), Dir3::Y);
         }
+        if keycode.just_pressed(KeyCode::Digit3) {
+            config.view = true;
+            *t = Transform::from_xyz(7.0, 5.0, 7.0)
+                .looking_at(Vec3::new(0.0, 3.0, 0.0), Dir3::Y);
+        }
     }
 }
 
@@ -408,7 +458,6 @@ fn on_scene_ready(
     for child in children.iter_descendants(root) {
         if let Ok((p, lamp)) = lamps_query.get(child) {
             if let Ok(transform) = deets.get(p.parent) {
-                info!("Light onread: {} {:?}", lamp.light, transform);
                 commands.spawn((
                     PointLight {
                         intensity: lamp.light * 2.0,
@@ -451,7 +500,7 @@ fn update_playa(
         let power = 2.0;
         let anim_speed = 1.5;
         let mut v = Vec2::new(0.0, 0.0);
-        if config.view {
+        if input.pressed(KeyCode::ShiftLeft) {
             if input.pressed(KeyCode::KeyW) {
                 v.x -= power;
                 t.rotation = Quat::from_rotation_y(-PI * 0.5);
