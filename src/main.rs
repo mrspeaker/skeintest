@@ -426,7 +426,17 @@ fn update_cam(
     keycode: Res<ButtonInput<KeyCode>>,
     mut config: ResMut<Config>,
 ) {
+    let mut done = false;
     for mut t in cam.iter_mut() {
+        // Follow player
+        for pt in player.iter() {
+            t.translation.y = pt.translation.y + 1.7;
+        }
+
+        if done {
+            continue;
+        }
+        done = true;
         if keycode.just_pressed(KeyCode::Digit1) {
             config.view = false;
             *t = Transform::from_xyz(-5.25, 1.5, 1.0)
@@ -434,16 +444,13 @@ fn update_cam(
         }
         if keycode.just_pressed(KeyCode::Digit2) {
             config.view = true;
-            *t = Transform::from_xyz(7.0, 5.0, 7.0)
-                .looking_at(Vec3::new(0.0, 3.0, 0.0), Dir3::Y);
+            *t = Transform::from_xyz(7.0, -5.0, 7.0)
+                .looking_at(Vec3::new(0.0, -5.0, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit3) {
             config.view = false;
-            *t = Transform::from_xyz(-5.25, -2.0, 1.0)
-                .looking_at(Vec3::new(-5.25, -2.0, 0.0), Dir3::Y);
-        }
-        for pt in player.iter() {
-            t.translation.y = pt.translation.y + 1.7;
+            *t = Transform::from_xyz(1.0, 1.5, -5.25)
+                .looking_at(Vec3::new(0.0, 1.5, -5.25), Dir3::Y);
         }
     }
 }
