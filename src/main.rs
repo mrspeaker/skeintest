@@ -35,7 +35,9 @@ struct CameraPosition {
 }
 
 #[derive(Component)]
-struct Playa;
+struct Playa {
+    dir: Vec2
+}
 
 #[derive(Debug, Event)]
 pub struct DroppedFile {
@@ -163,7 +165,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
-            // PhysicsDebugPlugin::default(),
+            PhysicsDebugPlugin::default(),
             PhysicsPlugins::default(),
             SkeinPlugin::default(),
             MaterialPlugin::<CustomMaterial>::default(),
@@ -210,8 +212,7 @@ fn setup_init(
         .iter()
         .enumerate()
     {
-        commands.spawn((
-            MyCam,
+        let cam = commands.spawn((
             Name::new(*name),
             Camera3d::default(),
             Camera {
@@ -239,7 +240,11 @@ fn setup_init(
                 intensity: 1700.0,
                 ..default()
             },
-        ));
+        )).id();
+
+        if index == 0 {
+            commands.entity(cam).insert(MyCam);
+        }
     }
 
     commands.spawn((
@@ -318,13 +323,22 @@ fn setup_after_load(
     commands.spawn((
         Name::new("APlayer"),
         SceneRoot(player.player.clone()),
-        Transform::from_xyz(-1.0, -0.1, -1.0),
-        Playa,
+        Transform::from_xyz(-1.0, 1.0, -1.0),
+        Playa {
+            dir: Vec2::new(0.0, 0.0)
+        },
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED,
         AnimationsToPlay {
             graph: graph_handle,
             indices
-        }
-    )).observe(
+        },
+    ))
+        .with_child((
+            Collider::capsule(0.25, 1.0),
+            Transform::from_translation(Vec3::Y * 1.5 * 0.5),
+        ))
+        .observe(
         |trigger: Trigger<SceneInstanceReady>,
         mut cmds: Commands,
         children: Query<&Children>,
@@ -412,20 +426,15 @@ fn update_cam(
     mut config: ResMut<Config>,
     time: Res<Time>
 ) {
-    let secs = time.elapsed_secs_wrapped();
+    //let secs = time.elapsed_secs_wrapped();
     for mut t in cam.iter_mut() {
-        t.translation.y += (secs * 0.5).sin() * 0.0025;
+        //t.translation.y += (secs * 0.5).sin() * 0.0025;
         if keycode.just_pressed(KeyCode::Digit1) {
             config.view = false;
-            *t = Transform::from_xyz(-7.0, 1.0, 7.0)
-                .looking_at(Vec3::new(-7.0, 1.0, 0.0), Dir3::Y);
+            *t = Transform::from_xyz(-5.0, 1.0, 1.0)
+                .looking_at(Vec3::new(-5.0, 1.0, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit2) {
-            config.view = true;
-            *t = Transform::from_xyz(7.0, 1.0, -6.5)
-                .looking_at(Vec3::new(0.0, 1.0, -6.5), Dir3::Y);
-        }
-        if keycode.just_pressed(KeyCode::Digit3) {
             config.view = true;
             *t = Transform::from_xyz(7.0, 5.0, 7.0)
                 .looking_at(Vec3::new(0.0, 3.0, 0.0), Dir3::Y);
@@ -500,7 +509,8 @@ fn update_playa(
         let power = 2.0;
         let anim_speed = 1.5;
         let mut v = Vec2::new(0.0, 0.0);
-        if input.pressed(KeyCode::ShiftLeft) {
+        let is_shift = input.pressed(KeyCode::ShiftLeft) || input.pressed(KeyCode::ShiftRight);
+        if is_shift {
             if input.pressed(KeyCode::KeyW) {
                 v.x -= power;
                 t.rotation = Quat::from_rotation_y(-PI * 0.5);
