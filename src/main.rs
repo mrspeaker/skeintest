@@ -165,7 +165,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
-            PhysicsDebugPlugin::default(),
+            //PhysicsDebugPlugin::default(),
             PhysicsPlugins::default(),
             SkeinPlugin::default(),
             MaterialPlugin::<CustomMaterial>::default(),
@@ -206,8 +206,8 @@ fn setup_init(
 ) {
     commands.insert_resource(Config { view: false });
     for (index, (name, pos, look)) in [
-        ("Top", Vec3::new(-5.0, 1.0, 1.0), Vec3::new(-5.0, 1.0, 0.0)),
-        ("Bottom", Vec3::new(1.0, 1.0, -5.3), Vec3::new(0.0, 1.0, -5.3)),
+        ("Top", Vec3::new(-5.25, 1.5, 1.0), Vec3::new(-5.25, 1.5, 0.0)),
+        ("Bottom", Vec3::new(1.0, 1.5, -5.25), Vec3::new(0.0, 1.5, -5.25)),
     ]
         .iter()
         .enumerate()
@@ -421,23 +421,29 @@ fn on_dropped(
 }
 
 fn update_cam(
-    mut cam: Query<&mut Transform, With<MyCam>>,
+    mut cam: Query<&mut Transform, With<Camera>>,
+    player: Query<&Transform, (With<Playa>, Without<Camera>)>,
     keycode: Res<ButtonInput<KeyCode>>,
     mut config: ResMut<Config>,
-    time: Res<Time>
 ) {
-    //let secs = time.elapsed_secs_wrapped();
     for mut t in cam.iter_mut() {
-        //t.translation.y += (secs * 0.5).sin() * 0.0025;
         if keycode.just_pressed(KeyCode::Digit1) {
             config.view = false;
-            *t = Transform::from_xyz(-5.0, 1.0, 1.0)
-                .looking_at(Vec3::new(-5.0, 1.0, 0.0), Dir3::Y);
+            *t = Transform::from_xyz(-5.25, 1.5, 1.0)
+                .looking_at(Vec3::new(-5.25, 1.5, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit2) {
             config.view = true;
             *t = Transform::from_xyz(7.0, 5.0, 7.0)
                 .looking_at(Vec3::new(0.0, 3.0, 0.0), Dir3::Y);
+        }
+        if keycode.just_pressed(KeyCode::Digit3) {
+            config.view = false;
+            *t = Transform::from_xyz(-5.25, -2.0, 1.0)
+                .looking_at(Vec3::new(-5.25, -2.0, 0.0), Dir3::Y);
+        }
+        for pt in player.iter() {
+            t.translation.y = pt.translation.y + 1.7;
         }
     }
 }
@@ -560,6 +566,11 @@ fn update_playa(
         t.translation.z += v.y * time.delta_secs();
         if t.translation.z > 1.0 {
             t.translation.z = 1.0;
+        }
+        if t.translation.y < -10.0 {
+            t.translation.x = -1.0;
+            t.translation.y = 1.0;
+            t.translation.z = -1.0;
         }
     }
 }
