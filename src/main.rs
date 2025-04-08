@@ -165,7 +165,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
-            //PhysicsDebugPlugin::default(),
+            PhysicsDebugPlugin::default(),
             PhysicsPlugins::default(),
             SkeinPlugin::default(),
             MaterialPlugin::<CustomMaterial>::default(),
@@ -311,7 +311,6 @@ fn setup_after_load(
 ));
     */
 
-
     // Anim for player
     let (graph, indices) =
         AnimationGraph::from_clips([
@@ -333,12 +332,12 @@ fn setup_after_load(
             graph: graph_handle,
             indices
         },
-    ))
-        .with_child((
+        children![(
             Collider::capsule(0.25, 1.0),
             Transform::from_translation(Vec3::Y * 1.5 * 0.5),
-        ))
-        .observe(
+        )]
+    ))
+    .observe(
         |trigger: Trigger<SceneInstanceReady>,
         mut cmds: Commands,
         children: Query<&Children>,
@@ -444,8 +443,8 @@ fn update_cam(
         }
         if keycode.just_pressed(KeyCode::Digit2) {
             config.view = true;
-            *t = Transform::from_xyz(7.0, -5.0, 7.0)
-                .looking_at(Vec3::new(0.0, -5.0, 0.0), Dir3::Y);
+            *t = Transform::from_xyz(3.0, 5.0, 3.0)
+                .looking_at(Vec3::new(0.0, 4.0, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit3) {
             config.view = false;
