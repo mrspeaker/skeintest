@@ -6,28 +6,24 @@ use bevy::{
     },
     prelude::*,
     render::{
-        render_resource::{AsBindGroup, ShaderRef, ShaderType},
-        camera::{ScalingMode, Viewport},
+        camera::{ ScalingMode, Viewport },
+        render_resource::{ AsBindGroup, ShaderRef, ShaderType },
     },
     scene::SceneInstanceReady,
     window::WindowResized
 };
 
-use bevy_asset_loader::prelude::*;
-use bevy_asset_loader::asset_collection::AssetCollection;
-use bevy_skein::SkeinPlugin;
-use std::f32::consts::*;
+use bevy_asset_loader::{
+    prelude::*,
+    asset_collection::AssetCollection
+};
 use avian3d::prelude::*;
+use bevy_skein::SkeinPlugin;
+use std::f32::consts::{ PI, TAU };
 
-use std::f32::consts::TAU;
 
 const PREPASS_SHADER_ASSET_PATH: &str = "shaders/show_prepass.wgsl";
 const MATERIAL_SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
-
-#[derive(Resource)]
-struct Config {
-    view: bool,
-}
 
 #[derive(Component)]
 struct CameraPosition {
@@ -66,10 +62,6 @@ struct Lamp {
 	light: f32,
     col: Color
 }
-
-#[derive(Component, Reflect, Debug)]
-#[reflect(Component)]
-struct MyCam;
 
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
@@ -111,8 +103,6 @@ struct CustomMaterial {
     alpha_mode: AlphaMode,
 }
 
-/// Not shown in this example, but if you need to specialize your material, the specialize
-/// function will also be used by the prepass
 impl Material for CustomMaterial {
     fn fragment_shader() -> ShaderRef {
         MATERIAL_SHADER_ASSET_PATH.into()
@@ -121,12 +111,6 @@ impl Material for CustomMaterial {
     fn alpha_mode(&self) -> AlphaMode {
         self.alpha_mode
     }
-
-    // You can override the default shaders used in the prepass if your material does
-    // anything not supported by the default prepass
-    // fn prepass_fragment_shader() -> ShaderRef {
-    //     "shaders/custom_material.wgsl".into()
-    // }
 }
 
 #[derive(Debug, Clone, Default, ShaderType)]
@@ -161,11 +145,9 @@ fn main() {
         .register_type::<Player>()
         .register_type::<Spin>()
         .register_type::<Lamp>()
-        .register_type::<MyCam>()
-        .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
-            PhysicsDebugPlugin::default(),
+            // PhysicsDebugPlugin::default(),
             PhysicsPlugins::default(),
             SkeinPlugin::default(),
             MaterialPlugin::<CustomMaterial>::default(),
@@ -176,6 +158,7 @@ fn main() {
                 ..default()
             },
         ))
+        .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.08)))
         .init_state::<GameStates>()
         .add_loading_state(
             LoadingState::new(GameStates::AssetLoading)
@@ -204,7 +187,6 @@ fn setup_init(
     mut meshes: ResMut<Assets<Mesh>>,
     mut depth_materials: ResMut<Assets<PrepassOutputMaterial>>,
 ) {
-    commands.insert_resource(Config { view: false });
     for (index, (name, pos, look)) in [
         ("Top", Vec3::new(-5.25, 1.5, 1.0), Vec3::new(-5.25, 1.5, 0.0)),
         ("Bottom", Vec3::new(1.0, 1.5, -5.25), Vec3::new(0.0, 1.5, -5.25)),
@@ -212,7 +194,7 @@ fn setup_init(
         .iter()
         .enumerate()
     {
-        let cam = commands.spawn((
+        commands.spawn((
             Name::new(*name),
             Camera3d::default(),
             Camera {
@@ -240,11 +222,7 @@ fn setup_init(
                 intensity: 1700.0,
                 ..default()
             },
-        )).id();
-
-        if index == 0 {
-            commands.entity(cam).insert(MyCam);
-        }
+        ));
     }
 
     commands.spawn((
@@ -289,13 +267,13 @@ fn setup_after_load(
         GltfAssetLabel::Scene(0).from_asset("test.glb"),
     ))).observe(on_scene_ready);
 
-    /*
     commands.spawn((
         Name::new("Building"),
         SceneRoot(player.building.clone()),
         Transform::from_xyz(-12.25, 0.0, -2.1),
     ));
 
+    /*
     commands.spawn((
         Name::new("Building"),
         SceneRoot(player.building.clone()),
@@ -423,7 +401,6 @@ fn update_cam(
     mut cam: Query<&mut Transform, With<Camera>>,
     player: Query<&Transform, (With<Playa>, Without<Camera>)>,
     keycode: Res<ButtonInput<KeyCode>>,
-    mut config: ResMut<Config>,
 ) {
     let mut done = false;
     for mut t in cam.iter_mut() {
@@ -437,17 +414,14 @@ fn update_cam(
         }
         done = true;
         if keycode.just_pressed(KeyCode::Digit1) {
-            config.view = false;
             *t = Transform::from_xyz(-5.25, 1.5, 1.0)
                 .looking_at(Vec3::new(-5.25, 1.5, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit2) {
-            config.view = true;
             *t = Transform::from_xyz(3.0, 5.0, 3.0)
                 .looking_at(Vec3::new(0.0, 4.0, 0.0), Dir3::Y);
         }
         if keycode.just_pressed(KeyCode::Digit3) {
-            config.view = false;
             *t = Transform::from_xyz(1.0, 1.5, -5.25)
                 .looking_at(Vec3::new(0.0, 1.5, -5.25), Dir3::Y);
         }
@@ -471,7 +445,6 @@ fn on_scene_ready(
     trigger: Trigger<SceneInstanceReady>,
     children: Query<&Children>,
     lamps_query: Query<(&ChildOf, &Lamp)>,
-    // camera_query: Query<(&Parent, &MyCam)>,
     deets: Query<&Transform>,
     mut commands: Commands,
 ) {
@@ -503,7 +476,6 @@ fn update_playa(
     mut player: Query<(Entity, &mut Transform), With<Playa>>,
     time: Res<Time>,
     input: Res<ButtonInput<KeyCode>>,
-    config: Res<Config>,
     animations_to_play: Query<&AnimationsToPlay>,
     mut players: Query<&mut AnimationPlayer, With<PlayerPlayer>>,
 ) {
