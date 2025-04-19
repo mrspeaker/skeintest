@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 # avian3d = "0.2.1"
-avian3d = { git = "https://github.com/Jondolf/avian.git", branch="bevy-0.16" }
-bevy = { version = "0.16.0-rc.3", features = ["exr"] }
-bevy_asset_loader = "0.23.0-rc.1"
+avian3d = { git = "https://github.com/Jondolf/avian.git", branch="main" }
+bevy = { version = "0.16.0-rc.5", features = ["exr"] }
+bevy_asset_loader = "0.23.0-rc.2"
+#bevy_asset_loader = { git = "https://github.com/NiklasEi/bevy_asset_loader.git", branch="bevy_main" }
 #bevy_skein = "0.1.2"
-bevy_skein ={ git = "https://github.com/rust-adventure/skein.git", branch="main" }
+bevy_skein = { git = "https://github.com/rust-adventure/skein.git", branch="main" }

@@ -451,7 +451,7 @@ fn on_scene_ready(
     let root = trigger.target();
     for child in children.iter_descendants(root) {
         if let Ok((p, lamp)) = lamps_query.get(child) {
-            if let Ok(transform) = deets.get(p.parent) {
+            if let Ok(transform) = deets.get(p.parent()) {
                 commands.spawn((
                     PointLight {
                         intensity: lamp.light * 2.0,
